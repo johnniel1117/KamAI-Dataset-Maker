@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Download, DownloadCloud, Pause, Play, StopCircle, Camera } from "lucide-react"
+import { Download, DownloadCloud, Pause, Play, StopCircle, Camera, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
@@ -20,6 +20,7 @@ export default function VideoRecorder() {
   const [progress, setProgress] = useState(0)
   const [clipCount, setClipCount] = useState(0)
   const [clipNamePrefix, setClipNamePrefix] = useState("clip")
+  const [isCameraOn, setIsCameraOn] = useState(true)
   const chunksRef = useRef<Blob[]>([])
 
   // Initialize camera
@@ -56,6 +57,23 @@ export default function VideoRecorder() {
     }
   }, [])
 
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      })
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        setIsCameraOn(true)
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err)
+      alert("Camera access failed. Please check your permissions and try again.")
+    }
+  }
+
   const stopCamera = () => {
     if (videoRef.current?.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream
@@ -65,6 +83,7 @@ export default function VideoRecorder() {
       // Reset states
       setRecording(false)
       setAutoRecording(false)
+      setIsCameraOn(false)
       setRecordedClips([])
       setClipCount(0)
     }
@@ -160,6 +179,17 @@ export default function VideoRecorder() {
     recordedClips.forEach((url, i) => downloadClip(url, i))
   }
 
+  const deleteClip = (index: number) => {
+    setRecordedClips((prev) => {
+      const newClips = [...prev]
+      // Revoke the URL to prevent memory leaks
+      URL.revokeObjectURL(newClips[index])
+      newClips.splice(index, 1)
+      return newClips
+    })
+    setClipCount((prev) => prev - 1)
+  }
+
   const handleNamePrefixChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setClipNamePrefix(e.target.value || "clip")
   }
@@ -253,10 +283,16 @@ export default function VideoRecorder() {
             )}
           </div>
 
-          <Button variant="secondary" onClick={stopCamera} className="ml-auto">
-            <StopCircle className="mr-2 h-4 w-4" />
-            Stop Camera
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={startCamera} disabled={isCameraOn}>
+              <Camera className="mr-2 h-4 w-4" />
+              Start Camera
+            </Button>
+            <Button variant="secondary" onClick={stopCamera} disabled={!isCameraOn}>
+              <StopCircle className="mr-2 h-4 w-4" />
+              Stop Camera
+            </Button>
+          </div>
         </CardFooter>
       </Card>
 
@@ -282,14 +318,24 @@ export default function VideoRecorder() {
                       {clipNamePrefix}
                       {index + 1}.mp4
                     </div>
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => downloadClip(url, index)}
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => deleteClip(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => downloadClip(url, index)}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
